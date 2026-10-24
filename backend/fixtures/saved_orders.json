@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "persona": "Alex",
+  "orders": {
+    "usual_lunch": {
+      "display_name": "Usual lunch",
+      "items": [
+        {
+          "name": "Turkey club",
+          "quantity": 1
+        },
+        {
+          "name": "Iced tea",
+          "quantity": 1
+        }
+      ],
+      "total_usd": 12.4,
+      "currency": "USD",
+      "delivery_eta_minutes": 35,
+      "synthetic": true
+    }
+  }
+}

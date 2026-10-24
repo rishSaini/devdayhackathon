@@ -413,6 +413,8 @@ ripple/
 
 ## Setup and running locally
 
+> **Integration status:** This README describes the target implementation. For the current implementation checklist, safe smoke-check sequence, and demo rehearsal notes, see [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md). Do not claim a live integration until it has passed a real rehearsal.
+
 ### Prerequisites
 
 - Python 3.11+, Node 20+
