@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     ripple_approval_timeout_s: float = Field(default=600, gt=0)
     ripple_tool_timeout_s: float = Field(default=10, gt=0)
     ripple_demo_approval: bool = False
+    ripple_database_path: str = str(BACKEND_DIR / "app/data/ripple.sqlite3")
+    ripple_input_timeout_s: float = Field(default=300, gt=0)
+    ripple_user_token: SecretStr | None = None
+    ripple_caregiver_token: SecretStr | None = None
     ripple_cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
     user_display_name: str = "Alex"
     home_phone: str = ""
@@ -40,6 +44,18 @@ class Settings(BaseSettings):
     public_base_url: str = ""
     demo_fallback_lat: float = Field(default=37.7749, ge=-90, le=90)
     demo_fallback_lng: float = Field(default=-122.4194, ge=-180, le=180)
+
+    @field_validator(
+        "openai_api_key",
+        "twilio_auth_token",
+        "ripple_user_token",
+        "ripple_caregiver_token",
+        mode="before",
+    )
+    @classmethod
+    def empty_secret(cls, value):
+        raw = value.get_secret_value() if isinstance(value, SecretStr) else value
+        return None if isinstance(raw, str) and not raw.strip() else value
 
     @property
     def models_configured(self) -> bool:

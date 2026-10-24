@@ -18,6 +18,32 @@
       "currency": "USD",
       "delivery_eta_minutes": 35,
       "synthetic": true
+    },
+    "soup_lunch": {
+      "display_name": "Soup and bread",
+      "items": [
+        {
+          "name": "Soup and bread",
+          "quantity": 1
+        }
+      ],
+      "total_usd": 9.5,
+      "currency": "USD",
+      "delivery_eta_minutes": 35,
+      "synthetic": true
+    },
+    "vegetarian_lunch": {
+      "display_name": "Vegetable sandwich and tea",
+      "items": [
+        {
+          "name": "Vegetable sandwich and tea",
+          "quantity": 1
+        }
+      ],
+      "total_usd": 11.0,
+      "currency": "USD",
+      "delivery_eta_minutes": 35,
+      "synthetic": true
     }
   }
 }

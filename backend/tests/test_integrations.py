@@ -141,3 +141,16 @@ def test_live_startup_rejects_emergency_numbers(settings, field):
     setattr(config, field, "911")
     with pytest.raises(ValueError):
         TwilioMessaging(config)
+
+
+async def test_location_sms_discloses_demo_fallback(settings, monkeypatch):
+    from app.schemas import Location, ToolResult
+
+    adapter = TwilioMessaging(live_settings(settings))
+    send = AsyncMock(return_value=ToolResult(ok=True, source="live", detail="Accepted"))
+    monkeypatch.setattr(adapter, "_send", send)
+    await adapter.location_sms(settings.emergency_contact, Location(lat=1, lng=2), fallback=True)
+    assert "Fixed demo fallback, not GPS" in send.call_args.args[2]["Body"]
+    await adapter.location_sms(settings.emergency_contact, Location(lat=1, lng=2, accuracy_m=15))
+    assert "Device-reported location" in send.call_args.args[2]["Body"]
+    assert "15" in send.call_args.args[2]["Body"]

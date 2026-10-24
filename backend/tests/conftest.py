@@ -10,6 +10,10 @@ from app.schemas import TapRequest
 def settings():
     return Settings(
         _env_file=None,
+        ripple_database_path=":memory:",
+        ripple_user_token=None,
+        ripple_caregiver_token=None,
+        openai_api_key=None,
         ripple_live_models=False,
         ripple_live_twilio=False,
         ripple_demo_approval=True,

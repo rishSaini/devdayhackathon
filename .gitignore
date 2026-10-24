@@ -21,6 +21,7 @@ htmlcov/
 
 # Runtime data and local logs
 backend/app/data/medical_log.jsonl
+*.sqlite3*
 *.log
 
 # Node / frontend

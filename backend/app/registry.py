@@ -37,5 +37,45 @@ REGISTRY = MappingProxyType(
             3,
             3,
         ),
+        "text_caregiver": ActionSpec(
+            "text_caregiver",
+            "Text Caregiver",
+            "Send a user-selected message to the caregiver.",
+            1,
+            1,
+        ),
+        "set_temperature": ActionSpec(
+            "set_temperature",
+            "Set Temperature",
+            "Set the simulated room thermostat within allowed bounds.",
+            1,
+            1,
+        ),
+        "log_pain": ActionSpec(
+            "log_pain",
+            "Log Pain",
+            "Record the user's own reported pain severity in a simulated record.",
+            2,
+            2,
+            touches_health_record=True,
+        ),
+        "reposition_bed": ActionSpec(
+            "reposition_bed",
+            "Adjust Bed Head",
+            "Apply an explicitly selected simulated bed preset.",
+            2,
+            2,
+        ),
+        "request_drink": ActionSpec(
+            "request_drink", "Request Drink", "Ask the caregiver for a drink of water.", 1, 1
+        ),
+        "unlock_door": ActionSpec(
+            "unlock_door",
+            "Unlock Front Door",
+            "Grant a time-bounded simulated door access window, without emergency dispatch.",
+            3,
+            3,
+            physical_access_change=True,
+        ),
     }
 )

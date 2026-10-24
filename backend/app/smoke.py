@@ -5,6 +5,7 @@ import json
 import time
 
 from .config import Settings
+from .registry import REGISTRY
 from .schemas import TapRequest
 from .service import Service
 
@@ -12,18 +13,24 @@ from .service import Service
 async def main():
     settings = Settings(
         _env_file=None,
+        ripple_database_path=":memory:",
         ripple_live_models=False,
         ripple_live_twilio=False,
         ripple_cancel_window_s=0.01,
     )
     service = Service(settings)
     try:
-        for button in ("text_home", "dim_lights", "order_lunch", "emergency"):
+        for button in REGISTRY:
             result = service.tap(
                 TapRequest(
                     button_id=button,
                     timestamp=int(time.time() * 1000),
                     session_id="offline-smoke",
+                    params={"severity": 4}
+                    if button == "log_pain"
+                    else {"elevation": 15}
+                    if button == "reposition_bed"
+                    else {},
                 )
             )
             action = service.store.get(result["action_id"])

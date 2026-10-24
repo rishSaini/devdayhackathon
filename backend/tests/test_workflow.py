@@ -29,9 +29,9 @@ class CountingMessaging(MockMessaging):
         self.calls += 1
         return await super().voice_call(to, message)
 
-    async def location_sms(self, to, location):
+    async def location_sms(self, to, location, *, fallback=False):
         self.locations += 1
-        return await super().location_sms(to, location)
+        return await super().location_sms(to, location, fallback=fallback)
 
 
 async def test_cancel_prevents_sms_and_normal_execution_waits(settings):

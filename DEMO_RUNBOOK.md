@@ -1,7 +1,7 @@
-﻿# Ripple demo runbook
+# Ripple demo runbook
 
 This runbook follows the frozen product contract in the root README.
-The backend now implements that contract. See [backend/README.md](backend/README.md) for current setup and configuration.
+The backend preserves that contract and adds ten-action support, clarification, access roles, and SQLite recovery. See [backend/README.md](backend/README.md) for current setup and configuration.
 The frontend export exists but still uses local simulations. Backend integration remains pending.
 Do not describe a feature as live until the phone and UI behavior have been observed during rehearsal.
 
@@ -40,19 +40,26 @@ npm install
 npm run dev
 ```
 
-Open the URL printed by the frontend dev server (the planned default is `http://localhost:5173`). Check `/healthz` before attempting live integrations. Report accurately which integrations are live, fallback, or mock.
+Open the URL printed by the frontend dev server (the current Vite script uses `http://localhost:3000`). Check `/healthz` before attempting live integrations. Report accurately which integrations are live, fallback, or mock.
 
 ## Smoke checks
 
 Start with local health and synthetic behavior. Do not send a real SMS or voice call until the team has confirmed the configured destination numbers and explicitly selected a rehearsal window.
 
 - **Backend health:** open `http://localhost:8000/healthz`; verify reported integration states and fallback labels.
-- **Decisions API:** use the implementation's smoke command with `order_lunch`; confirm a fixed choice is returned. A missing entitlement, timeout, or refusal must visibly use static fallback.
+- **Models:** run `python -m app.model_smoke --component decisions`, then `--component planner` and `--component agents`; confirm a fixed choice is returned. A missing entitlement, timeout, or refusal must visibly use static fallback.
 - **Twilio SMS and Voice:** after confirming the test recipient and Twilio configuration, run the backend's documented smoke commands. Verify the handset receives the SMS and speaks the call; trial-account prompts and carrier delays may affect the result.
 - **Webhook:** send an approval reply from the configured caregiver phone through the public tunnel. Confirm signature validation and matching of YES/NO to the pending action.
 - **Frontend/backend:** tap each of the four visible tiles and verify the emitted button ID, timestamp, session ID, and returned action status. Poll every 750 ms per contract.
 
 If implementation modules do not yet expose README's proposed command-line smoke entry points, do not claim that smoke test passed; validate through the available health/API endpoint and record the gap for the owner.
+
+## Backend workflow checks
+
+Run `python -m pytest -q` and `python -m app.smoke` from `backend/` first.
+The offline smoke check covers all ten canonical actions.
+Check `/catalog` for explicit frontend aliases and `/docs` for request schemas.
+Verify role tokens, clarification, approval fingerprints, undo, acknowledgement, and restart recovery before UI integration.
 
 ## End-to-end rehearsal checklist
 
@@ -69,8 +76,8 @@ Keep the presenter's phone face-up with ringer on and volume up, and use a secon
 
 ## Current integration handoff
 
-- **Present:** FastAPI routes, in-memory state machine, Decisions/Agents modules, optional Twilio adapter, and synthetic fixtures.
+- **Present:** FastAPI routes for ten actions, SQLite checkpoints, SDK planning and execution, Decisions checks, API roles, and signed Twilio callbacks.
 - **Present:** Frontend export with local simulations; it is not connected to the backend.
 - **Awaiting verification:** Account access, live model execution, SMS/voice delivery, and full frontend integration.
-- **Default mode:** External calls are disabled. Enable live flags only for a configured rehearsal.
+- **Default mode:** External calls are disabled. Enable live flags only for a configured rehearsal. Live Twilio startup requires distinct resident and caregiver API tokens.
 - **Recheck on integration:** request/response and state transitions, frontend polling/cancel wiring, webhook signature validation, labeled source states, and the full checklist above.
