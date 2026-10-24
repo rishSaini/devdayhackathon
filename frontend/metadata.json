@@ -1,0 +1,6 @@
+{
+  "name": "Ripple - AAC Physical Autonomy Engine",
+  "description": "Adult AAC execution engine for ALS and stroke survivors with spasm filtering, Decisions API triage, and Agents API physical autonomy.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
