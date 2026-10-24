@@ -40,7 +40,13 @@ class TwilioMessaging:
                         self.settings.twilio_account_sid,
                         self.settings.twilio_auth_token.get_secret_value(),
                     ),
-                    data={"To": to, "From": self.settings.twilio_from_number, **fields},
+                    data={
+                        "To": to,
+                        "From": self.settings.twilio_from_number,
+                        "StatusCallback": self.settings.public_base_url.rstrip("/")
+                        + "/twilio/status",
+                        **fields,
+                    },
                 )
             response.raise_for_status()
             data = response.json()
@@ -50,6 +56,8 @@ class TwilioMessaging:
                 ok=True,
                 source="live",
                 detail=f"Twilio accepted {resource.lower()}; delivery is not confirmed.",
+                provider_id=data["sid"],
+                provider_status=data.get("status"),
             )
         except Exception:
             return ToolResult(
@@ -71,20 +79,24 @@ class TwilioMessaging:
             "Calls", to, {"Twiml": f"<Response><Say>{said}</Say><Say>{said}</Say></Response>"}
         )
 
-    async def location_sms(self, to: str, location: Location) -> ToolResult:
+    async def location_sms(
+        self, to: str, location: Location, *, fallback: bool = False
+    ) -> ToolResult:
         return await self._send(
             "Messages",
             to,
             {
-                "Body": f"Ripple demo emergency alert. Location: https://maps.google.com/?q={location.lat},{location.lng}",
+                "Body": f"Ripple demo emergency alert. {'Fixed demo fallback, not GPS' if fallback else 'Device-reported location'} (accuracy: {location.accuracy_m if location.accuracy_m is not None else 'unknown'} m): https://maps.google.com/?q={location.lat},{location.lng}",
             },
         )
 
 
-def valid_signature(settings: Settings, form: dict[str, str], signature: str) -> bool:
+def valid_signature(
+    settings: Settings, form: dict[str, str], signature: str, path: str = "/twilio/sms"
+) -> bool:
     if not settings.twilio_auth_token or not settings.public_base_url.startswith("https://"):
         return False
-    url = settings.public_base_url.rstrip("/") + "/twilio/sms"
+    url = settings.public_base_url.rstrip("/") + path
     return RequestValidator(settings.twilio_auth_token.get_secret_value()).validate(
         url, form, signature
     )

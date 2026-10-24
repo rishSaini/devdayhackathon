@@ -5,7 +5,7 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .config import Settings
 from .registry import REGISTRY, ActionSpec
@@ -42,13 +42,17 @@ class Classification:
     tier: int
     source: Literal["live", "fallback"]
     confidence: float | None = None
+    model_tier: int | None = None
+    fallback_reason: str | None = None
 
 
 def apply_policy(spec: ActionSpec, answer: ChoiceAnswer, threshold: float) -> Classification:
     tier = int(answer.choice[-1])
     if answer.confidence < threshold:
         tier = min(tier + 1, 3)
-    return Classification(max(spec.policy_floor, tier), "live", answer.confidence)
+    return Classification(
+        max(spec.policy_floor, tier), "live", answer.confidence, int(answer.choice[-1])
+    )
 
 
 class Classifier:
@@ -57,9 +61,16 @@ class Classifier:
         self.client = client
 
     async def classify(self, spec: ActionSpec) -> Classification:
-        fallback = Classification(max(spec.static_tier, spec.policy_floor), "fallback")
+        def fallback(reason: str) -> Classification:
+            return Classification(
+                max(spec.static_tier, spec.policy_floor), "fallback", fallback_reason=reason
+            )
+
         if not self.settings.models_configured:
-            return fallback
+            return fallback(
+                "disabled" if not self.settings.ripple_live_models else "missing_api_key"
+            )
+        reason = "api_error"
         for _ in range(self.settings.ripple_decisions_retries + 1):
             try:
                 async with asyncio.timeout(self.settings.ripple_decisions_timeout_s):
@@ -95,12 +106,23 @@ class Classifier:
                             }
                         ],
                     )
-                    answer = ChoiceAnswer.model_validate(decision.answers[0].model_dump())
+                    answers = [answer.model_dump() for answer in decision.answers]
+                    matching = [answer for answer in answers if answer.get("name") == "risk_tier"]
+                    if len(matching) != 1:
+                        reason = "invalid_response"
+                        continue
+                    if matching[0].get("type") == "refusal":
+                        return fallback("refused")
+                    answer = ChoiceAnswer.model_validate(matching[0])
                     return apply_policy(spec, answer, self.settings.ripple_confidence_threshold)
+            except TimeoutError:
+                reason = "timeout"
+            except ValidationError:
+                reason = "invalid_response"
             except Exception:
                 # Never echo model responses, SDK exceptions, or request contents.
-                continue
-        return fallback
+                reason = "api_error"
+        return fallback(reason)
 
     async def close(self):
         if self.client is not None:

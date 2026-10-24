@@ -70,7 +70,12 @@ async def test_classifier_uses_choice_schema(settings):
     settings.ripple_live_models = True
     settings.openai_api_key = "offline-test"
     answer = SimpleNamespace(
-        model_dump=lambda: {"type": "choice", "choice": "tier_1", "confidence": 0.94}
+        model_dump=lambda: {
+            "type": "choice",
+            "name": "risk_tier",
+            "choice": "tier_1",
+            "confidence": 0.94,
+        }
     )
     create = AsyncMock(return_value=SimpleNamespace(answers=[answer]))
     result = await Classifier(

@@ -25,7 +25,9 @@ class Messaging(Protocol):
     async def send_sms(self, to: str, body: str) -> ToolResult: ...
     async def send_approval(self, to: str, action_id: str, details: str) -> ToolResult: ...
     async def voice_call(self, to: str, message: str) -> ToolResult: ...
-    async def location_sms(self, to: str, location: Location) -> ToolResult: ...
+    async def location_sms(
+        self, to: str, location: Location, *, fallback: bool = False
+    ) -> ToolResult: ...
 
 
 class MockMessaging:
@@ -44,7 +46,9 @@ class MockMessaging:
             ok=True, source="mock", detail="Simulated voice call; no call was placed."
         )
 
-    async def location_sms(self, to: str, location: Location) -> ToolResult:
+    async def location_sms(
+        self, to: str, location: Location, *, fallback: bool = False
+    ) -> ToolResult:
         return ToolResult(
             ok=True, source="mock", detail="Simulated location SMS; no location was shared."
         )

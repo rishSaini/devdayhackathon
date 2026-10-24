@@ -6,7 +6,8 @@
 
 **Track:** Agents in Action · **Stack:** React + FastAPI + OpenAI Decisions API + OpenAI Agents SDK + Twilio (SMS + Voice)
 
-**Current implementation:** The backend now implements the four-button contract with local tests and default mock execution.
+**Current implementation:** The backend supports ten actions, structured SDK planning, clarification, caregiver approval, and SQLite recovery.
+The four original action IDs remain supported. Device and checkout tools remain simulated.
 See [backend/README.md](backend/README.md) for setup, configuration, and current limits.
 The exported frontend still uses local simulations and needs backend integration.
 The architecture below describes the target demo; it does not establish that external integrations passed rehearsal.
@@ -22,7 +23,7 @@ The architecture below describes the target demo; it does not establish that ext
 5. [Safety design](#safety-design-what-the-judges-should-notice)
 6. [API contract](#api-contract-frozen)
 7. [Decisions API: classification prompt](#decisions-api-the-classification-call)
-8. [Agents API: tools and handoff](#agents-api-execution)
+8. [Agents SDK: tools and handoff](#agents-sdk-execution)
 9. [Repo layout](#repo-layout)
 10. [Setup and running locally](#setup-and-running-locally)
 11. [Build order](#build-order-strict)
@@ -59,7 +60,7 @@ A tablet-style grid of four large, high-contrast tiles. Each tile is an **action
 
 | Tile | `button_id` | Tier | What happens |
 |---|---|---|---|
-| 💬 **Text Home** | `text_home` | 1 · Low | 5-second cancel window → agent drafts a short contextual message → Twilio SMS |
+| 💬 **Text Home** | `text_home` | 1 · Low | 5-second cancel window → agent sends the exact selected message → Twilio SMS |
 | 💡 **Dim Lights** | `dim_lights` | 1 · Low | 5-second cancel window → agent calls the (mock) smart-home tool |
 | 🥪 **Order Lunch** | `order_lunch` | 2 · Financial | Agent builds the saved favorite order → texts the caregiver *"Approve $12 lunch order? Reply YES or NO"* → on YES, mock checkout finalizes → tile shows ✅ |
 | 🚨 **Emergency** | `emergency` | 3 · Emergency | **No delay, no approval.** Immediate Twilio voice call with a text-to-speech alert + SMS with GPS coordinates to the emergency contact |
@@ -85,7 +86,7 @@ A tablet-style grid of four large, high-contrast tiles. Each tile is an **action
 │  ② Spasm filter ─────── same button within 400 ms → dropped      │
 │  ③ Policy floor ─────── static registry: emergency is ALWAYS T3   │
 │  ④ Decisions API ────── choice: tier_1 | tier_2 | tier_3          │
-│        └── fails/timeout/low confidence → static tier (labeled)   │
+│        └── fails/timeout → static tier; low confidence → escalate   │
 │  ⑤ Tier router                                                   │
 │        T1 → 5 s cancel window → Agent(T1 tools)                  │
 │        T2 → Agent(T2 prep tools) → approval SMS → wait for YES   │
@@ -106,7 +107,7 @@ A tablet-style grid of four large, high-contrast tiles. Each tile is an **action
      └─────────────────────────┘
 ```
 
-**The core idea:** the Decisions API *picks*, the Agents API *does*, and plain code *guards*. Anything that has to be deterministic for safety (debouncing, the emergency floor, approval gating, tool scoping) lives in code, not in a prompt.
+**The core idea:** the Decisions API *picks*, the Agents SDK *does*, and plain code *guards*. Anything that has to be deterministic for safety (debouncing, the emergency floor, approval gating, tool scoping) lives in code, not in a prompt.
 
 ---
 
@@ -246,7 +247,7 @@ Every error is returned as JSON with a human-readable `message`. The server neve
 
 We use OpenAI's **Decisions API** (`POST /v1/decisions`, model `gpt-6-luna`, public beta) with a single **choice** question. It *picks* from a fixed set instead of generating text, which is exactly what a safety router needs: one answer from three options, plus a confidence score, in roughly 150 ms.
 
-> ⚠️ Day-0 check: the Decisions API is in beta and some accounts get `403 Decision API is not enabled for this user`. Verify access with the smoke test in [Setup](#setup-and-running-locally) **before** building on it. The static tier map is the fallback either way.
+> Verify Decisions access with the opt-in model checks in [backend/README.md](backend/README.md). Missing access, timeout, and refusal use labeled fallback.
 
 ### The exact request
 
@@ -325,7 +326,7 @@ Design notes on the prompt:
 
 ---
 
-## Agents API: execution
+## Agents SDK: execution
 
 Execution uses the **OpenAI Agents SDK** (`openai-agents`): `Agent`, `Runner`, and `@function_tool`. Each tier has its own agent with a narrow toolbox and short instructions.
 
@@ -389,7 +390,7 @@ ripple/
 │   │   ├── spasm_filter.py    # 400 ms debounce keyed by (session_id, button_id)
 │   │   ├── decisions.py       # Decisions API call + TIER_INSTRUCTIONS + fallback
 │   │   ├── agents.py          # per-tier Agent definitions and Runner wrappers
-│   │   ├── store.py           # in-memory action store + pending approvals
+│   │   ├── store.py           # SQLite action checkpoints + pending approvals
 │   │   └── tools/
 │   │       ├── twilio_tools.py   # send_sms, approval text, voice call, location SMS
 │   │       ├── home.py           # set_lights, set_thermostat, smart_lock_grant_access (mock)
@@ -423,11 +424,13 @@ ripple/
 ### Prerequisites
 
 - Python 3.11+, Node 20+
-- An OpenAI API key **with Decisions API access** (beta)
+- An OpenAI API key with access to the configured models
 - A Twilio account + one Twilio phone number, with SMS + Voice enabled
 - [ngrok](https://ngrok.com/) (or Cloudflare Tunnel) so Twilio can reach the inbound webhook
 
 ### Environment (`backend/.env`)
+
+Use [backend/.env.example](backend/.env.example) for the complete current configuration, including live flags and API tokens.
 
 ```bash
 OPENAI_API_KEY=sk-...
@@ -483,7 +486,7 @@ python -m app.tools.twilio_tools --sms "$CAREGIVER_PHONE" "Ripple smoke test"
 # Twilio Voice calls your phone and speaks
 python -m app.tools.twilio_tools --call "$EMERGENCY_CONTACT" "Ripple voice test"
 
-# Health check shows every integration as live
+# Health check reports configuration; configured does not mean verified
 curl localhost:8000/healthz
 ```
 
@@ -526,7 +529,7 @@ curl localhost:8000/healthz
 3. **Tier 1 (30 s).** The lights dim (simulated device chip) after the 5 s cancel bar. Tap **Text Home**, and the phone buzzes with a message the agent drafted. "Low-risk actions just happen. The user can cancel, nobody else has to approve."
 4. **Tier 2 (50 s).** Tap **Order Lunch**. The Decisions API chip shows `Tier 2 · financial · 0.94`. The caregiver's phone buzzes: *"Approve $12.40 lunch order? Reply YES or NO."* They reply YES live. The tile flips to ✅. "Money gets a co-signer, one the user chose, with a limit the user set. The agent can't call checkout until a human says yes: that's enforced in code, not in a prompt."
 5. **Tier 3 (40 s).** Tap **Emergency**. Within seconds the phone **rings** and a voice reads the alert, and a text arrives with a map link. "No timer. No approval. No waiting on AI. The model still classifies it, but the phone was already ringing."
-6. **Close (20 s).** "Decisions API picks. Agents API acts. Code guards. Ripple is an independent-living platform for adults who never stopped being adults."
+6. **Close (20 s).** "Decisions API picks. Agents SDK acts. Code guards. Ripple is an independent-living platform for adults who never stopped being adults."
 
 **Backup:** a pre-recorded screen + phone video of the full run, labeled as a recording if used.
 
@@ -553,7 +556,7 @@ curl localhost:8000/healthz
 |---|---|
 | **Agents acting in the real world** | Real SMS and real phone calls on a real phone, triggered autonomously from one tap |
 | **Use of the Decisions API** | A fixed-choice risk classification with a confidence score driving routing (round-up when unsure), the exact use case the API was built for |
-| **Use of the Agents API** | Per-tier agents with scoped toolboxes; a two-phase Tier 2 run split around a human approval |
+| **Use of the Agents SDK** | Per-tier agents with scoped toolboxes; a two-phase Tier 2 run split around a human approval |
 | **Safety and trust** | Spasm filter, emergency floor, escalate-never-de-escalate, tool scoping, approval-gated checkout, labeled fallbacks, 911 blocklist |
 | **Impact** | ~30,000 Americans live with ALS; ~7M+ are stroke survivors, a large share with aphasia. Ripple targets the adult AAC gap. *(Cite sources on the slide.)* |
 | **Technical execution** | Deterministic where it must be, AI where it helps, contract-first, tested fixtures |
@@ -573,7 +576,7 @@ curl localhost:8000/healthz
 - The Cancel target is the largest element on screen during the window.
 - Stretch: **dwell / hold-to-activate** mode for users whose spasms produce long presses rather than double-taps.
 
-**Privacy (prototype scope).** Synthetic persona ("Alex") and synthetic saved orders. Phone numbers are team members' own, in `.env` only, never committed. Pseudonymous `session_id`. No prompts, messages, or locations in server logs; the medical log is a local mock file that `.gitignore` excludes. A real deployment would need authentication, HIPAA-grade handling of the medical log, consent for location sharing, and a real emergency-services integration. **We do not claim any of that for the prototype.**
+**Privacy (prototype scope).** Synthetic persona ("Alex") and synthetic saved orders. Phone numbers are team members' own, in `.env` only, never committed. Pseudonymous `session_id`. No prompts, messages, or locations in server logs; messages and simulated pain records use a local SQLite database that `.gitignore` excludes. The backend has resident and caregiver API tokens. Production identity, clinical data controls, and real emergency-service integration remain outside this prototype. **We do not claim any of that for the prototype.**
 
 **What Ripple will never do.** Call emergency services directly (prototype), spend money without a configured approval path, or act on a tap that didn't come from the user's own board.
 
@@ -584,13 +587,13 @@ curl localhost:8000/healthz
 **Locked (do not reopen):**
 
 - One-page React frontend, 2×2 grid, polling (no websockets).
-- FastAPI single process, in-memory store (no database).
-- Four tiles only for the demo. The stretch registry exists in code but is hidden.
+- FastAPI single worker with SQLite checkpoints and an exclusive database lock.
+- The four core actions remain the baseline. The backend also supports the extra frontend actions.
 - Spasm filter, emergency floor, and approval gating are **code**, never prompt.
-- Decisions API for classification only; Agents SDK for execution only.
+- Decisions API for risk judgments; Agents SDK for read-only planning and scoped execution.
 - Every external call has a timeout and a labeled fallback. All models, timeouts, and thresholds are pinned in `config.py`.
 
-**Cut (already decided, do not resurrect):** real delivery integration · real smart-home integration (Nest, Hue) · user accounts and auth · a settings UI (hardcode the config) · multi-device sync · eye-tracking input · calling 911 · Streamlit (React gives the tablet look we need).
+**Cut (already decided, do not resurrect):** real delivery integration · real smart-home integration (Nest, Hue) · production identity and multi-resident tenancy · a settings UI (hardcode the config) · multi-device sync · eye-tracking input · calling 911 · Streamlit (React gives the tablet look we need).
 
 ---
 
