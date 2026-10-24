@@ -1,0 +1,33 @@
+name: Backend checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      RIPPLE_LIVE_MODELS: "false"
+      RIPPLE_LIVE_TWILIO: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip check
+      - run: ruff check app tests
+      - run: ruff format --check app tests
+      - run: python -m pytest -q
+      - run: python -m app.smoke

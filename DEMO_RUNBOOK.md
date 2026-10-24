@@ -1,6 +1,9 @@
 ﻿# Ripple demo runbook
 
-This runbook follows the frozen product contract in the root README. The repository currently contains planning docs and fixtures; backend and frontend implementation files have not landed yet. Treat every command below as the intended bring-up sequence once the corresponding implementation exists. Do not describe a feature as live until the phone and UI behavior have been observed during rehearsal.
+This runbook follows the frozen product contract in the root README.
+The backend now implements that contract. See [backend/README.md](backend/README.md) for current setup and configuration.
+The frontend export exists but still uses local simulations. Backend integration remains pending.
+Do not describe a feature as live until the phone and UI behavior have been observed during rehearsal.
 
 ## Before rehearsal
 
@@ -66,6 +69,8 @@ Keep the presenter's phone face-up with ringer on and volume up, and use a secon
 
 ## Current integration handoff
 
-- **Present:** README contract and demo plan; synthetic order and tier classification fixtures.
-- **Awaiting implementation:** FastAPI routes/state machine, Decisions/Agents/Twilio modules, and the AI Studio frontend export.
+- **Present:** FastAPI routes, in-memory state machine, Decisions/Agents modules, optional Twilio adapter, and synthetic fixtures.
+- **Present:** Frontend export with local simulations; it is not connected to the backend.
+- **Awaiting verification:** Account access, live model execution, SMS/voice delivery, and full frontend integration.
+- **Default mode:** External calls are disabled. Enable live flags only for a configured rehearsal.
 - **Recheck on integration:** request/response and state transitions, frontend polling/cancel wiring, webhook signature validation, labeled source states, and the full checklist above.

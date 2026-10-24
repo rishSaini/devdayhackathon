@@ -6,6 +6,11 @@
 
 **Track:** Agents in Action · **Stack:** React + FastAPI + OpenAI Decisions API + OpenAI Agents SDK + Twilio (SMS + Voice)
 
+**Current implementation:** The backend now implements the four-button contract with local tests and default mock execution.
+See [backend/README.md](backend/README.md) for setup, configuration, and current limits.
+The exported frontend still uses local simulations and needs backend integration.
+The architecture below describes the target demo; it does not establish that external integrations passed rehearsal.
+
 ---
 
 ## Table of contents
