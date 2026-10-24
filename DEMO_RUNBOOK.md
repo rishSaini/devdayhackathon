@@ -1,6 +1,6 @@
 ﻿# Ripple demo runbook
 
-This runbook follows the frozen product contract in the root README. The repository currently contains planning docs and fixtures; backend and frontend implementation files have not landed yet. Treat every command below as the intended bring-up sequence once the corresponding implementation exists. Do not describe a feature as live until the phone and UI behavior have been observed during rehearsal.
+This runbook follows the frozen product contract in the root README. The Twilio helpers and approval webhook router are implemented, but the backend `app.main` action service and frontend export have not landed yet. The full bring-up sequence therefore remains pending until Ben mounts the router with the action-state callback and the other modules arrive. Do not describe a feature as live until the phone and UI behavior have been observed during rehearsal.
 
 ## Before rehearsal
 
@@ -45,7 +45,8 @@ Start with local health and synthetic behavior. Do not send a real SMS or voice 
 
 - **Backend health:** open `http://localhost:8000/healthz`; verify reported integration states and fallback labels.
 - **Decisions API:** use the implementation's smoke command with `order_lunch`; confirm a fixed choice is returned. A missing entitlement, timeout, or refusal must visibly use static fallback.
-- **Twilio SMS and Voice:** after confirming the test recipient and Twilio configuration, run the backend's documented smoke commands. Verify the handset receives the SMS and speaks the call; trial-account prompts and carrier delays may affect the result.
+- **Twilio SMS:** from `backend/`, run `python -m app.tools.twilio_tools --sms "$CAREGIVER_PHONE" "Ripple smoke test"` (PowerShell: `$env:CAREGIVER_PHONE`). Verify the confirmed test handset receives it.
+- **Twilio Voice:** after confirming the teammate-owned emergency test recipient, run `python -m app.tools.twilio_tools --call "$EMERGENCY_CONTACT" "Ripple voice test"` (PowerShell: `$env:EMERGENCY_CONTACT`). Verify the call speaks. Trial-account prompts and carrier delays may affect the result.
 - **Webhook:** send an approval reply from the configured caregiver phone through the public tunnel. Confirm signature validation and matching of YES/NO to the pending action.
 - **Frontend/backend:** tap each of the four visible tiles and verify the emitted button ID, timestamp, session ID, and returned action status. Poll every 750 ms per contract.
 
@@ -67,5 +68,6 @@ Keep the presenter's phone face-up with ringer on and volume up, and use a secon
 ## Current integration handoff
 
 - **Present:** README contract and demo plan; synthetic order and tier classification fixtures.
-- **Awaiting implementation:** FastAPI routes/state machine, Decisions/Agents/Twilio modules, and the AI Studio frontend export.
-- **Recheck on integration:** request/response and state transitions, frontend polling/cancel wiring, webhook signature validation, labeled source states, and the full checklist above.
+- **Implemented on this branch:** Twilio SMS and voice helpers, location SMS, short-lived Tier 2 approval registration, and a signed inbound approval webhook. The webhook is exposed by `create_twilio_router` and must be mounted by the backend app with an action-state callback. Outbound sends require configured destinations; voice and location are limited to `EMERGENCY_CONTACT`; blocked emergency-service numbers are rejected.
+- **Awaiting implementation:** FastAPI action routes/state machine, Decisions/Agents modules, and the AI Studio frontend export.
+- **Recheck on integration:** mount the webhook router and connect its callback to the action store; verify request/response and state transitions, frontend polling/cancel wiring, signature validation through the public tunnel, labeled source states, and the full checklist above.

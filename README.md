@@ -229,7 +229,7 @@ executing ──▶ done | failed                                   (Tier 3, imm
 |---|---|---|
 | `GET` | `/actions/{action_id}` | Frontend polls every 750 ms for status changes |
 | `POST` | `/actions/{action_id}/cancel` | User cancels during the Tier 1 window (or a pending Tier 2) |
-| `POST` | `/twilio/sms` | **Inbound Twilio webhook.** Parses `Body` for YES/NO, validates `X-Twilio-Signature`, resolves the pending approval, replies with TwiML |
+| `POST` | `/twilio/sms` | **Inbound Twilio webhook.** Validates `X-Twilio-Signature` using the Twilio SDK, matches YES/NO and the short approval code to a pending request from the designated caregiver, then returns TwiML. The backend action callback performs state transitions; the webhook never finalizes an order itself. |
 | `POST` | `/demo/approve/{action_id}` | Backup approve button, shown as **"Manual approval (demo backup)"**, for when SMS delivery is slow on stage |
 | `GET` | `/healthz` | Reports which integrations are live vs. fallback (OpenAI, Twilio, ngrok URL) |
 
@@ -330,23 +330,23 @@ All tools return a dict `{"ok": bool, "source": "live" | "mock", "detail": str}`
 
 | Tool | Tier | Real or mock | Notes |
 |---|---|---|---|
-| `send_sms(to, body)` | 1 | **Live** (Twilio) | Body ≤ 160 chars, drafted by the agent |
+| `send_sms(to, body)` | 1 | **Live** (Twilio) | Body ≤ 160 chars; recipient must match a configured demo contact |
 | `set_lights(level_percent)` | 1 | Mock | Logs + returns the new state; the UI shows a "Simulated device" chip |
 | `set_thermostat(target_f)` | 1 (stretch) | Mock | Clamped to 60–80°F in code |
 | `build_saved_order(order_name)` | 2 | Mock | Returns items + total from `fixtures/saved_orders.json` |
-| `twilio_send_approval_text(action_details, caregiver_phone)` | 2 | **Live** (Twilio) | Sends `"Ripple: Alex wants to {action_details}. Reply YES or NO."` and registers the pending approval |
+| `twilio_send_approval_text(action_id, action_details, caregiver_phone)` | 2 | **Live** (Twilio) | Sends a short-lived coded YES/NO request to the configured caregiver and registers the pending approval before sending |
 | `finalize_order(order_id)` | 2, post-approval only | Mock | The "Boostly" stand-in: returns `200 OK` + an ETA |
 | `log_medical_event(event_type, severity)` | 2 / 3 | Mock | Appends to `data/medical_log.jsonl` with a timestamp; severity is clamped to 0–10 |
-| `twilio_voice_call(to, message)` | 3 | **Live** (Twilio Voice) | `<Say>` TwiML text-to-speech, message repeated twice |
-| `send_sms_with_location(to, lat, lng)` | 3 | **Live** (Twilio) | Includes a `https://maps.google.com/?q=lat,lng` link |
+| `twilio_voice_call(to, message)` | 3 | **Live** (Twilio Voice) | `<Say>` TwiML text-to-speech, message repeated twice; recipient is restricted to the configured emergency contact |
+| `send_sms_with_location(to, lat, lng)` | 3 | **Live** (Twilio) | Includes a `https://maps.google.com/?q=lat,lng` link; recipient is restricted to the configured emergency contact |
 | `smart_lock_grant_access()` | 3 | Mock | Returns a 15-minute access window; logged in the audit trail |
 
 ### The Tier 2 approval loop, step by step
 
 1. The Tier 2 agent calls `build_saved_order("usual_lunch")` → `{items, total: 12.40}`.
-2. The agent calls `twilio_send_approval_text("order lunch: turkey club + iced tea, $12.40", CAREGIVER_PHONE)`.
+2. The backend calls `twilio_send_approval_text(action_id, "order lunch: turkey club + iced tea, $12.40", CAREGIVER_PHONE)`. The helper registers an expiring code before sending the SMS.
 3. The action moves to `awaiting_approval`. The agent run **ends here**, and nothing can buy anything yet.
-4. The caregiver replies `YES`, Twilio POSTs to `/twilio/sms`, the signature is validated, and the reply is matched to the pending approval (if more than one is pending, the approval text includes a 2-digit code: `YES 42`).
+4. The caregiver replies `YES 42` or `NO 42`, Twilio POSTs to `/twilio/sms`, the signature is validated, and the reply is matched to the pending approval using the caregiver number and 2-digit code.
 5. The code starts a **new** agent run that holds `finalize_order`. It returns `200 OK`, the status becomes `done`, and the tile flips to ✅ **"Lunch ordered · arrives ~12:40"**.
 
 ### The Tier 3 fast path
@@ -386,7 +386,9 @@ ripple/
 │   │   ├── agents.py          # per-tier Agent definitions and Runner wrappers
 │   │   ├── store.py           # in-memory action store + pending approvals
 │   │   └── tools/
-│   │       ├── twilio_tools.py   # send_sms, approval text, voice call, location SMS
+│   │       ├── twilio_tools.py   # SMS, voice, location; explicit smoke-test CLI
+│   │       ├── twilio_approval.py # approval SMS and signed inbound webhook router
+│   │       ├── approvals.py      # expiring caregiver/action approval registry
 │   │       ├── home.py           # set_lights, set_thermostat, smart_lock_grant_access (mock)
 │   │       ├── delivery.py       # build_saved_order, finalize_order (mock "Boostly")
 │   │       └── medical.py        # log_medical_event (mock)
@@ -486,7 +488,7 @@ curl localhost:8000/healthz
 
 - **Trial accounts** can only text and call **verified** numbers, prefix every SMS with "Sent from your Twilio trial account", and play a trial preamble on voice calls that asks the recipient to press a key before your message plays. **Upgrade the account (≈$20) before demo day** or rehearse the keypress.
 - **US SMS registration (A2P 10DLC / toll-free verification)** can silently block or filter texts from unregistered numbers. Send a real test SMS on Day 0, not the night before.
-- The inbound webhook URL changes each time you restart free ngrok. Use a reserved domain or re-paste it in the console.
+- The inbound webhook URL changes each time you restart free ngrok. Use a reserved domain or re-paste it in the console. Mount `create_twilio_router(on_decision=...)` from `app.tools.twilio_approval` in the FastAPI app; the callback must move the action to `executing` only for YES and to `declined` for NO, with finalization still guarded by backend control flow.
 - Validate `X-Twilio-Signature` with `twilio.request_validator.RequestValidator` against `PUBLIC_BASE_URL + "/twilio/sms"` (the URL Twilio called, not `localhost`).
 
 ---
