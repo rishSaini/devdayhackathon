@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "description": "Synthetic classification fixtures. expected_tier is the minimum safe tier; apply registry policy floors and low-confidence round-up in code.",
+  "cases": [
+    {
+      "id": "text-home-casual",
+      "button_id": "text_home",
+      "label": "Text Home",
+      "action_description": "Send a casual check-in text to the user's family member.",
+      "spends_money": false,
+      "touches_health_record": false,
+      "physical_access_change": false,
+      "expected_tier": "tier_1",
+      "reason": "Reversible social communication with no cost or health record change."
+    },
+    {
+      "id": "dim-lights",
+      "button_id": "dim_lights",
+      "label": "Dim Lights",
+      "action_description": "Set the lights in the user's own room to 30 percent brightness.",
+      "spends_money": false,
+      "touches_health_record": false,
+      "physical_access_change": false,
+      "expected_tier": "tier_1",
+      "reason": "Low-risk, reversible change limited to the user's environment."
+    },
+    {
+      "id": "order-lunch",
+      "button_id": "order_lunch",
+      "label": "Order Lunch",
+      "action_description": "Place the synthetic saved lunch order for $12.40.",
+      "spends_money": true,
+      "touches_health_record": false,
+      "physical_access_change": false,
+      "expected_tier": "tier_2",
+      "reason": "A purchase requires the configured co-signer approval path."
+    },
+    {
+      "id": "log-pain",
+      "button_id": "log_pain",
+      "label": "Log Pain",
+      "action_description": "Record a pain level of 8 out of 10 in the user's medical log.",
+      "spends_money": false,
+      "touches_health_record": true,
+      "physical_access_change": false,
+      "expected_tier": "tier_2",
+      "reason": "A health record write is at least Tier 2. This is a classifier fixture, not a visible demo tile."
+    },
+    {
+      "id": "emergency-help",
+      "button_id": "emergency",
+      "label": "Emergency",
+      "action_description": "The user requests immediate help and an alert to their designated emergency contact.",
+      "spends_money": false,
+      "touches_health_record": false,
+      "physical_access_change": false,
+      "expected_tier": "tier_3",
+      "reason": "A request for help routes through the immediate emergency path."
+    },
+    {
+      "id": "emergency-access",
+      "button_id": "unlock_door",
+      "label": "Grant emergency access",
+      "action_description": "Unlock the user's front door for arriving emergency responders.",
+      "spends_money": false,
+      "touches_health_record": false,
+      "physical_access_change": true,
+      "expected_tier": "tier_3",
+      "reason": "Emergency physical access is Tier 3. This stretch fixture is not a visible demo tile."
+    }
+  ]
+}
